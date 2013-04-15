@@ -29,7 +29,17 @@ import com.mongodb.hadoop.util.*;
 public class MongoOutputFormat<K, V> implements OutputFormat<K, V> {
     private static final Log log = LogFactory.getLog(MongoOutputFormat.class);
 
+    private final String[] updateKeys;
+    private final boolean multiUpdate;
+    
     public MongoOutputFormat() {
+        multiUpdate = false;
+        updateKeys = null;
+    }
+    
+    public MongoOutputFormat(String[] updateKeys, boolean multiUpdate) {
+        this.updateKeys = updateKeys;
+        this.multiUpdate = multiUpdate;
     }
 
     public void checkOutputSpecs(FileSystem ignored, JobConf job) {
@@ -40,7 +50,7 @@ public class MongoOutputFormat<K, V> implements OutputFormat<K, V> {
     }
 
     public RecordWriter<K, V> getRecordWriter(FileSystem ignored, JobConf job, String name, Progressable progress) {
-        return new MongoRecordWriter(MongoConfigUtil.getOutputCollection(job), job);
+        return new MongoRecordWriter(MongoConfigUtil.getOutputCollection(job), job, updateKeys, multiUpdate);
     }
 
 }

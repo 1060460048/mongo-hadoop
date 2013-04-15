@@ -38,11 +38,11 @@ public class MongoRecordWriter<K, V> extends RecordWriter<K, V> {
         this(c, ctx, updateKeys, false);
     }
     
-    public MongoRecordWriter( DBCollection c, TaskAttemptContext ctx, String[] updateKeys, boolean multi) {
+    public MongoRecordWriter( DBCollection c, TaskAttemptContext ctx, String[] updateKeys, boolean multiUpdate) {
         _collection = c;
         _context = ctx;
         this.updateKeys = updateKeys;
-        this.multiUpdate = false;
+        this.multiUpdate = multiUpdate;
     }
 
     public void close( TaskAttemptContext context ){

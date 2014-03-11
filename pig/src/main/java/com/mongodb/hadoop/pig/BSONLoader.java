@@ -133,31 +133,56 @@ public class BSONLoader extends LoadFunc {
                     ResourceFieldSchema[] fs = s.getFields();
                     Tuple t = tupleFactory.newTuple(fs.length);
 
-                    BasicDBObject val = (BasicDBObject) obj;
-
-                    for (int j = 0; j < fs.length; j++) {
-                        t.set(j, readField(val.get(fs[j].getName()), fs[j]));
+                    if (obj instanceof BasicDBObject) {
+                        BasicDBObject val = (BasicDBObject)obj;
+                        for(int j = 0; j < fs.length; j++) {
+                            t.set(j, readField(val.get(fs[j].getName()) ,fs[j]));
+                        }
+                    } else if (obj instanceof BasicDBList) {
+                        //This happens when a user wants to turn a list into a tuple.
+                        BasicDBList vals = (BasicDBList) obj;
+                        for (int j = 0; j < fs.length; j++) {
+                            t.set(j, readField(vals.get(j), fs[j]));
+                        }
                     }
 
                     return t;
 
                 case DataType.BAG:
+                    //We already know the bag has a schema of length 1 which is
+                    //a tuple, so skip that schema and get the schema of the tuple.
                     s = field.getSchema();
-                    fs = s.getFields();
+                    ResourceFieldSchema[] bagFields = s.getFields();
 
-                    s = fs[0].getSchema();
-                    fs = s.getFields();
+                    s = bagFields[0].getSchema();
 
                     DataBag bag = bagFactory.newDefaultBag();
-
                     BasicDBList vals = (BasicDBList) obj;
 
-                    for (Object val1 : vals) {
-                        t = tupleFactory.newTuple(fs.length);
-                        for (int k = 0; k < fs.length; k++) {
-                            t.set(k, readField(((BasicDBObject) val1).get(fs[k].getName()), fs[k]));
+                    if (s == null) {
+                        //Handle lack of schema - We'll create a separate tuple for each item in this bag.
+                        for(int j = 0; j < vals.size(); j++) {
+                            t = tupleFactory.newTuple(1);
+                            t.set(0, readField(vals.get(j), null));
+                            bag.add(t);
                         }
-                        bag.add(t);
+                    } else {
+                        fs = s.getFields();
+                        for (Object val1 : vals) {
+                            t = tupleFactory.newTuple(fs.length);
+
+                            if (val1 instanceof BasicDBObject) {
+                                for(int k = 0; k < fs.length; k++) {
+                                    String fieldName = fs[k].getName();
+                                    t.set(k, readField(((BasicDBObject) val1).get(fieldName), fs[k]));
+                                }
+                            } else {
+                                //This happens when a user declares an array as a tuple in the schema.  
+                                //We try to make that work to provide a way of retrieving an ordered list.
+                                t = (Tuple) readField(val1, bagFields[0]);
+                            }
+                            bag.add(t);
+                        }
                     }
 
                     return bag;

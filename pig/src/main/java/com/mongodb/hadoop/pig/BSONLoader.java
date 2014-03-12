@@ -3,6 +3,7 @@ package com.mongodb.hadoop.pig;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.hadoop.BSONFileInputFormat;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -15,6 +16,7 @@ import org.apache.pig.backend.executionengine.ExecException;
 import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigSplit;
 import org.apache.pig.data.BagFactory;
 import org.apache.pig.data.DataBag;
+import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.DataType;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
@@ -125,7 +127,7 @@ public class BSONLoader extends LoadFunc {
                 case DataType.DOUBLE:
                     return Double.parseDouble(obj.toString());
                 case DataType.BYTEARRAY:
-                    return BSONLoader.convertBSONtoPigType(obj);
+                    return new DataByteArray(obj.toString());
                 case DataType.CHARARRAY:
                     return obj.toString();
                 case DataType.TUPLE:

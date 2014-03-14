@@ -134,17 +134,10 @@ public class BSONLoader extends LoadFunc {
                     ResourceFieldSchema[] fs = s.getFields();
                     Tuple t = tupleFactory.newTuple(fs.length);
 
-                    if (obj instanceof BasicBSONObject) {
-                        BasicBSONObject val = (BasicBSONObject)obj;
-                        for(int j = 0; j < fs.length; j++) {
-                            t.set(j, readField(val.get(fs[j].getName()) ,fs[j]));
-                        }
-                    } else if (obj instanceof BasicBSONList) {
-                        //This happens when a user wants to turn a list into a tuple.
-                        BasicBSONList vals = (BasicBSONList) obj;
-                        for (int j = 0; j < fs.length; j++) {
-                            t.set(j, readField(vals.get(j), fs[j]));
-                        }
+                    BasicBSONObject val = (BasicBSONObject) obj;
+
+                    for (int j = 0; j < fs.length; j++) {
+                        t.set(j, readField(val.get(fs[j].getName()), fs[j]));
                     }
 
                     return t;
@@ -172,15 +165,9 @@ public class BSONLoader extends LoadFunc {
                         for (Object val1 : vals) {
                             t = tupleFactory.newTuple(fs.length);
 
-                            if (val1 instanceof BasicBSONObject) {
-                                for(int k = 0; k < fs.length; k++) {
-                                    String fieldName = fs[k].getName();
-                                    t.set(k, readField(((BasicBSONObject) val1).get(fieldName), fs[k]));
-                                }
-                            } else {
-                                //This happens when a user declares an array as a tuple in the schema.  
-                                //We try to make that work to provide a way of retrieving an ordered list.
-                                t = (Tuple) readField(val1, bagFields[0]);
+                            for(int k = 0; k < fs.length; k++) {
+                                String fieldName = fs[k].getName();
+                                t.set(k, readField(((BasicBSONObject) val1).get(fieldName), fs[k]));
                             }
                             bag.add(t);
                         }

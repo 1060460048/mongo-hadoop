@@ -1,29 +1,36 @@
 apply plugin: 'java'
+apply plugin: 'idea'
 apply plugin: 'download-task'
 
-def configDir = new File(rootDir, 'config')
-def cdh4rel = 'cdh4.3.0'
-def hadoop_version = project.getProperties().get('hadoop_version', '2.2')
-def versionMap = [
+ext.configDir = new File(rootDir, 'config')
+ext.hadoop_version = project.getProperties().get('hadoop_version', '2.3')
+ext.versionMap = [
         '0.23': '0.23.10',
         '1.0' : '1.0.4',
         '1.1' : '1.1.2',
-        'cdh4': "2.0.0-${cdh4rel}",
-        '2.2' : '2.2.0'
+        'cdh4': '2.0.0-cdh4.6.0',
+        '2.2' : '2.2.0',
+        '2.3' : '2.3.0'
 ].withDefault {
     throw new GradleException("Unknown hadoop version: ${hadoop_version}")
 }
+ext.hadoopVersion = versionMap[hadoop_version]
+ext.hadoopBinaries = "${System.getProperty('user.home')}/hadoop-binaries"
+ext.hadoopHome = "${hadoopBinaries}/hadoop-${hadoopVersion}"
+
+println "Building against hadoop ${hadoop_version} using ${hadoopVersion} libraries"
+
 buildscript {
     repositories {
         mavenLocal()
         mavenCentral()
         maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
+        jcenter()
     }
     dependencies {
         classpath 'me.trnl:clirr-gradle-plugin:0.4'
-        classpath 'com.antwerkz.github:github-release-gradle-plugin:1.0.0-RC3'
-        classpath 'org.gradle.api.plugins:gradle-nexus-plugin:0.3'
-        classpath 'de.undercouch:gradle-download-task:0.5'
+        classpath 'com.antwerkz.github:github-release-gradle-plugin:1.1.0'
+        classpath 'de.undercouch:gradle-download-task:1.0'
     }
 }
 
@@ -51,10 +58,11 @@ configure(subprojects) {
     targetCompatibility = JavaVersion.VERSION_1_6
 
     dependencies {
-        compile "org.mongodb:mongo-java-driver:2.11.3"
+        compile "org.mongodb:mongo-java-driver:2.11.4"
 
         testCompile 'junit:junit:4.11'
         testCompile 'org.hamcrest:hamcrest-all:1.3'
+        testCompile 'org.zeroturnaround:zt-exec:1.5'
     }
 
     /* Compiling */
@@ -62,7 +70,7 @@ configure(subprojects) {
         options.encoding = 'ISO-8859-1'
         options.fork = true
         options.debug = true
-//        options.compilerArgs = ['-Xlint:all', '-Xlint:-options']
+        options.compilerArgs = [/*'-Xlint:all', */ '-Xlint:-options']
     }
 
     project.ext.buildingWith = { n ->
@@ -72,6 +80,9 @@ configure(subprojects) {
     /* Testing */
     tasks.withType(Test) {
         maxParallelForks = 1
+        systemProperty 'hadoop.version', hadoop_version
+        systemProperty 'hadoop.release.version', hadoopVersion
+        systemProperties << System.getProperties()
 
         beforeTest { descr ->
             logger.info("[Test ${descr.className} > ${descr.name}]")
@@ -110,6 +121,13 @@ configure(subprojects) {
         classifier = "hadoop_${hadoop_version}"
     }
 
+    javadoc {
+        options.version = true
+        options.links 'http://docs.oracle.com/javase/6/docs/api/'
+        options.links 'http://hadoop.apache.org/docs/r2.3.0/api'
+        options.links 'http://api.mongodb.org/java/2.11.4/'
+    }
+
     task listDependencies << {
         configurations.compile.each { File file -> println file }
     }
@@ -130,22 +148,26 @@ project(":core") {
     dependencies {
         switch (hadoop_version) {
             case ("0.23"):
-                compile "org.apache.hadoop:hadoop-common:${versionMap[hadoop_version]}"
-                mapReduceDeps(it, versionMap[hadoop_version])
+                compile "org.apache.hadoop:hadoop-common:${hadoopVersion}"
+                mapReduceDeps(it, hadoopVersion)
                 break
             case ("1.0"):
-                compile "org.apache.hadoop:hadoop-core:${versionMap[hadoop_version]}"
+                compile "org.apache.hadoop:hadoop-core:${hadoopVersion}"
                 break
             case ("1.1"):
-                compile "org.apache.hadoop:hadoop-core:${versionMap[hadoop_version]}"
+                compile "org.apache.hadoop:hadoop-core:${hadoopVersion}"
                 break
             case ("cdh4"):
-                compile "org.apache.hadoop:hadoop-common:${versionMap[hadoop_version]}"
-                mapReduceDeps(it, versionMap[hadoop_version])
+                compile "org.apache.hadoop:hadoop-common:${hadoopVersion}"
+                mapReduceDeps(it, hadoopVersion)
                 break
             case ("2.2"):
-                compile "org.apache.hadoop:hadoop-common:${versionMap[hadoop_version]}"
-                mapReduceDeps(it, versionMap[hadoop_version])
+                compile "org.apache.hadoop:hadoop-common:${hadoopVersion}"
+                mapReduceDeps(it, hadoopVersion)
+                break
+            case ("2.3"):
+                compile "org.apache.hadoop:hadoop-common:${hadoopVersion}"
+                mapReduceDeps(it, hadoopVersion)
                 break
         }
     }
@@ -196,12 +218,10 @@ project(":streaming") {
 
     dependencies {
         compile project(':core')
-        compile "org.apache.hadoop:hadoop-streaming:${versionMap[hadoop_version]}"
+        compile "org.apache.hadoop:hadoop-streaming:${hadoopVersion}"
     }
 
     jar {
-        onlyIf { hadoop_version != "1.0" }
-
         from project(':core').sourceSets.main.output
         from sourceSets.main.output
 
@@ -211,6 +231,8 @@ project(":streaming") {
             from zipTree(it)
         }
     }
+
+    uploadArchives.onlyIf { hadoop_version != "1.0" }
 }
 
 project(":flume") {
@@ -219,14 +241,6 @@ project(":flume") {
         compile "com.cloudera:flume-core:0.9.4-cdh3u3"
     }
 }
-
-/*
-project(":examples/ufo_sightings") {
-    dependencies {
-        compile project(':core')
-    }
-}
-*/
 
 project(":examples/treasury_yield") {
     uploadArchives.onlyIf { false }
@@ -249,156 +263,87 @@ project(":examples/sensors") {
     }
 }
 
-task historicalYield() {
-    doLast {
-        exec() {
-            commandLine "mongoimport", "-d", "mongo_hadoop", "-c", "yield_historical.in", "--drop",
-                        "examples/treasury_yield/src/main/resources/yield_historical_in.json"
+project(":testing") {
+    uploadArchives.onlyIf { false }
+    dependencies {
+        testCompile project(':core')
+        testCompile project(':examples/treasury_yield')
+        testCompile "commons-logging:commons-logging:1.1.3"
+        testCompile "com.fasterxml.jackson.core:jackson-core:2.3.2"
+    }
+}
+
+task installHadoop() << {
+    new File(hadoopHome).getParentFile().mkdirs()
+
+    if (!new File("${hadoopHome}").exists()) {
+        def url
+        switch (hadoop_version) {
+            case ("cdh4"):
+                url = "http://archive.cloudera.com/cdh4/cdh/4/hadoop-${hadoopVersion}.tar.gz"
+                break
+            default:
+                url = "http://archive.apache.org/dist/hadoop/common/hadoop-${hadoopVersion}/hadoop-${hadoopVersion}.tar.gz"
+                break
         }
-
-        hadoop("examples/treasury_yield/build/libs/treasury_yield-${project(':core').version}-hadoop_${hadoop_version}.jar",
-               "com.mongodb.hadoop.examples.treasury.TreasuryYieldXMLConfig",
-
-               ["mongo.job.input.format=com.mongodb.hadoop.MongoInputFormat",
-                "mongo.input.uri=mongodb://localhost:27017/mongo_hadoop.yield_historical.in",
-                // "mongo.job.input.format=com.mongodb.hadoop.BSONFileInputFormat",
-                // "mapred.input.dir=file:///Users/mike/dump/mongo_hadoop/yield_historical.in.bson",
-
-                "mongo.job.mapper=com.mongodb.hadoop.examples.treasury.TreasuryYieldMapper",
-                "mongo.job.reducer=com.mongodb.hadoop.examples.treasury.TreasuryYieldReducer",
-
-                "mongo.job.mapper.output.key=org.apache.hadoop.io.IntWritable",
-                "mongo.job.mapper.output.value=org.apache.hadoop.io.DoubleWritable",
-                "mongo.job.output.key=org.apache.hadoop.io.IntWritable",
-                "mongo.job.output.value=com.mongodb.hadoop.io.BSONWritable",
-
-                "mongo.output.uri=mongodb://localhost:27017/mongo_hadoop.yield_historical.out",
-                "mongo.job.output.format=com.mongodb.hadoop.MongoOutputFormat",
-                // "mapred.output.dir=file:///tmp/yield_historical_out.bson",
-                // "mongo.job.output.format=com.mongodb.hadoop.BSONFileOutputFormat"
-               ])
-    }
-}
-
-task sensorData() {
-    doLast {
-        hadoop("examples/sensors/build/libs/sensors-${project(':core').version}-hadoop_${hadoop_version}.jar",
-               "com.mongodb.hadoop.examples.sensors.Sensors",
-
-               ["mongo.job.input.format=com.mongodb.hadoop.MongoInputFormat",
-                "mongo.input.uri=mongodb://localhost:27017/mongo_hadoop.devices",
-
-                "mongo.job.mapper=com.mongodb.hadoop.examples.sensors.DeviceMapper",
-                "mongo.job.reducer=com.mongodb.hadoop.examples.sensors.DeviceReducer",
-
-                "mongo.job.mapper.output.key=org.apache.hadoop.io.Text",
-                "mongo.job.mapper.output.value=org.apache.hadoop.io.Text",
-                "mongo.job.output.key=org.apache.hadoop.io.IntWritable",
-                "mongo.job.output.value=com.mongodb.hadoop.io.BSONWritable",
-
-                "mongo.output.uri=mongodb://localhost:27017/mongo_hadoop.logs_aggregate",
-                "mongo.job.output.format=com.mongodb.hadoop.MongoOutputFormat"
-               ])
-
-        hadoop("examples/sensors/build/libs/sensors-${project(':core').version}-hadoop_${hadoop_version}.jar",
-               "com.mongodb.hadoop.examples.sensors.Sensors",
-
-               ["mongo.input.uri=mongodb://localhost:27017/mongo_hadoop.logs",
-                "mongo.job.input.format=com.mongodb.hadoop.MongoInputFormat",
-                "mongo.job.mapper=com.mongodb.hadoop.examples.sensors.LogMapper",
-                "mongo.job.reducer=com.mongodb.hadoop.examples.sensors.LogReducer",
-                "mapreduce.combiner.class=com.mongodb.hadoop.examples.sensors.LogCombiner",
-                "mongo.job.combiner=com.mongodb.hadoop.examples.sensors.LogCombiner",
-                "io.sort.mb=100",
-
-                "mongo.job.output.key=org.apache.hadoop.io.Text",
-                "mongo.job.output.value=org.apache.hadoop.io.IntWritable",
-
-                "mongo.output.uri=mongodb://localhost:27017/mongo_hadoop.logs_aggregate",
-                "mongo.job.output.format=com.mongodb.hadoop.MongoOutputFormat"
-               ])
-    }
-}
-
-task enronEmails() {
-    doLast {
         download {
-            src 'https://s3.amazonaws.com/mongodb-enron-email/enron_mongo.tar.bz2'
-            dest 'examples/data/'
+            src url
+            dest hadoopBinaries
             onlyIfNewer true
         }
-        if (!new File('examples/data/dump').exists()) {
-            println "extracting email data"
-            copy {
-                from(tarTree('examples/data/enron_mongo.tar.bz2'))
-                into 'examples/data'
-            }
+
+        println "Extracting hadoop ${hadoopVersion} download"
+        copy {
+            from(tarTree("${hadoopBinaries}/hadoop-${hadoopVersion}.tar.gz"))
+            into hadoopBinaries
         }
-        
-        exec() {
-            commandLine "mongorestore", "-v", "-d", "mongo_hadoop", "--drop", "examples/data/dump/enron_mail"
-        }
-
-        hadoop("examples/enron/build/libs/enron-${project(':core').version}-hadoop_${hadoop_version}.jar",
-               "com.mongodb.hadoop.examples.enron.EnronMail",
-
-               ["mongo.job.input.format=com.mongodb.hadoop.MongoInputFormat",
-                "mongo.input.uri=mongodb://localhost:27017/mongo_hadoop.messages",
-
-                "mongo.input.split_size=64",
-
-                "mongo.job.mapper=com.mongodb.hadoop.examples.enron.EnronMailMapper",
-                "mongo.job.reducer=com.mongodb.hadoop.examples.enron.EnronMailReducer",
-                //"mongo.job.combiner=com.mongodb.hadoop.examples.enron.EnronMailReducer",
-
-                "mongo.job.output.key=com.mongodb.hadoop.examples.enron.MailPair",
-                "mongo.job.output.value=org.apache.hadoop.io.IntWritable",
-
-                "mongo.job.mapper.output.key=com.mongodb.hadoop.examples.enron.MailPair",
-                "mongo.job.mapper.output.value=org.apache.hadoop.io.IntWritable",
-
-                "mongo.output.uri=mongodb://localhost:27017/mongo_hadoop.message_pairs",
-                "mongo.job.output.format=com.mongodb.hadoop.MongoOutputFormat"
-
-               ])
     }
+    copyJars()
 }
-/*task ufoSightings() {
-    doLast {
-        exec() {
-            commandLine "mongoimport", "-d", "mongo_hadoop", "-c", "ufo_sightings.in", "--drop",
-                        "examples/ufo_sightings/src/main/resources/ufo_awesome.json"
-        }
-        
-//        $HADOOP_HOME/bin/hadoop jar ./target/ufo-example_cdh4.3.0-1.1.0.jar -Dmongo.input.uri=mongodb://localhost:27017/test.ufo 
-// -Dmongo.output.uri=mongodb://localhost:27017/test.ufo_out 
 
-        hadoop("examples/ufo_sightings/build/libs/ufo_sightings-${project(':core').version}-hadoop_${hadoop_version}.jar",
-               "com.mongodb.hadoop.examples.ufos.UfoSightings",
-
-               ["mongo.job.input.format=com.mongodb.hadoop.MongoInputFormat",
-                "mongo.input.uri=mongodb://localhost:27017/mongo_hadoop.ufo",
-                // "mongo.job.input.format=com.mongodb.hadoop.BSONFileInputFormat",
-                // "mapred.input.dir=file:///Users/mike/dump/mongo_hadoop/yield_historical.in.bson",
-
-//                "mongo.output.uri=mongodb://localhost:27017/mongo_hadoop.ufo.out",
-//                "mongo.job.output.format=com.mongodb.hadoop.MongoOutputFormat",
-
-                "mongo.job.mapper=com.mongodb.hadoop.examples.ufos.UfoSightingsMapper",
-                "mongo.job.reducer=com.mongodb.hadoop.examples.ufos.UfoSightingsReducer",
-
-                "mongo.job.mapper.output.key=org.apache.hadoop.io.Text",
-                "mongo.job.mapper.output.value=org.apache.hadoop.io.IntWritable",
-                "mongo.job.output.key=org.apache.hadoop.io.Text",
-                "mongo.job.output.value=com.mongodb.hadoop.io.IntWritable",
-
-               ])
-        
+task historicalYield(dependsOn: 'installHadoop') << {
+    exec() {
+        commandLine "mongoimport", "-d", "mongo_hadoop", "-c", "yield_historical.in", "--drop",
+                    "examples/treasury_yield/src/main/resources/yield_historical_in.json"
     }
-}*/
+
+    hadoop("examples/treasury_yield/build/libs/treasury_yield-${project(':core').version}-hadoop_${hadoop_version}.jar",
+           "com.mongodb.hadoop.examples.treasury.TreasuryYieldXMLConfig", [])
+}
+
+task sensorData(dependsOn: [installHadoop]) << {
+    hadoop("examples/sensors/build/libs/sensors-${project(':core').version}-hadoop_${hadoop_version}.jar",
+           "com.mongodb.hadoop.examples.sensors.Devices", [])
+
+    hadoop("examples/sensors/build/libs/sensors-${project(':core').version}-hadoop_${hadoop_version}.jar",
+           "com.mongodb.hadoop.examples.sensors.Logs", ["io.sort.mb=100"])
+}
+
+task enronEmails(dependsOn: 'installHadoop') << {
+    download {
+        src 'https://s3.amazonaws.com/mongodb-enron-email/enron_mongo.tar.bz2'
+        dest 'examples/data/'
+        onlyIfNewer true
+    }
+    if (!new File('examples/data/dump').exists()) {
+        println "extracting email data"
+        copy {
+            from(tarTree('examples/data/enron_mongo.tar.bz2'))
+            into 'examples/data'
+        }
+    }
+
+    exec() {
+        commandLine "mongorestore", "-v", "-d", "mongo_hadoop", "--drop", "examples/data/dump/enron_mail"
+    }
+
+    hadoop("examples/enron/build/libs/enron-${project(':core').version}-hadoop_${hadoop_version}.jar",
+           "com.mongodb.hadoop.examples.enron.EnronMail", ["mongo.input.split_size=64"])
+}
 
 def hadoop(jar, className, args) {
-    def line = ["${System.env.HADOOP_HOME}/bin/hadoop",
+
+    def line = ["${hadoopHome}/bin/hadoop",
                 "jar", jar, className,
                 //Split settings
                 "-Dmongo.input.split_size=8",
@@ -407,8 +352,35 @@ def hadoop(jar, className, args) {
     args.each {
         line << "-D${it}"
     }
+    println "Executing hadoop job:\n ${line.join(' \\\n\t')}"
+    def hadoopEnv = [:]
+    if (hadoop_version.startsWith("cdh")) {
+        hadoopEnv.MAPRED_DIR = 'share/hadoop/mapreduce2'
+    }
     exec() {
+        environment << hadoopEnv
+
         commandLine line
+    }
+}
+
+def copyJars() {
+    def hadoopLib
+    if (hadoop_version.startsWith("1")) {
+        hadoopLib = "${hadoopHome}/lib"
+    } else {
+        hadoopLib = "${hadoopHome}/share/hadoop/common"
+    }
+
+    copy {
+        from "core/build/libs/mongo-hadoop-core-${project(':core').version}-hadoop_${hadoop_version}.jar"
+        into hadoopLib
+        rename { "mongo-hadoop-core.jar" }
+    }
+    download {
+        src 'http://central.maven.org/maven2/org/mongodb/mongo-java-driver/2.11.4/mongo-java-driver-2.11.4.jar'
+        dest "${hadoopLib}/mongo-java-driver.jar"
+        onlyIfNewer true
     }
 }
 
@@ -421,3 +393,4 @@ def mapReduceDeps(it, version) {
 }
 
 apply from: 'gradle/maven-deployment.gradle'
+//apply from: 'testing/treasury-tests.gradle'

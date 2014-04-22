@@ -80,7 +80,7 @@ public class StandaloneMongoSplitter extends MongoCollectionSplitter {
             DB adminDB = this.inputCollection.getDB().getSisterDB("admin");
             
             if(!adminDB.isAuthenticated() && 
-                    inputURI.getUsername() != null && inputURI.getUsername() != null) {
+                    inputURI.getUsername() != null && inputURI.getPassword() != null) {
                 if (!adminDB.authenticate(inputURI.getUsername(), inputURI.getPassword())) {
                     throw new SplitFailedException("Could not authenticate to admin database.  Try setting mongo.auth.uri with admin credentials.");
                 };

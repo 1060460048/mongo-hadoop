@@ -20,10 +20,12 @@ import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.BasicDBObjectBuilder;
 import com.mongodb.CommandResult;
+import com.mongodb.DB;
 import com.mongodb.DBObject;
 import com.mongodb.MongoURI;
 import com.mongodb.hadoop.input.MongoInputSplit;
 import com.mongodb.hadoop.util.MongoConfigUtil;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -75,7 +77,15 @@ public class StandaloneMongoSplitter extends MongoCollectionSplitter {
 
         CommandResult data;
         if (this.authDB == null) {
-            data = this.inputCollection.getDB().getSisterDB("admin").command(cmd);
+            DB adminDB = this.inputCollection.getDB().getSisterDB("admin");
+            
+            if(!adminDB.isAuthenticated() && 
+                    inputURI.getUsername() != null && inputURI.getUsername() != null) {
+                if (!adminDB.authenticate(inputURI.getUsername(), inputURI.getPassword())) {
+                    throw new SplitFailedException("Could not authenticate to admin database.  Try setting mongo.auth.uri with admin credentials.");
+                };
+            }
+            data = adminDB.command(cmd);
         } else {
             data = this.authDB.command(cmd);
         }

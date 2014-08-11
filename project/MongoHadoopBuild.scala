@@ -207,6 +207,7 @@ object MongoHadoopBuild extends Build {
 
     resolvers ++= Seq(Resolvers.rawsonApache), /** Seems to have thrift deps I need*/
     libraryDependencies <++= (scalaVersion, libraryDependencies, hadoopRelease) { (sv, deps, hr: String) =>
+    libraryDependencies += "joda-time" %% "joda-time" % "2.2"
 
       if(hr == "cdh4"){
         Seq("org.apache.pig" % "pig" % "0.10.0-cdh4.2.0")

@@ -192,7 +192,7 @@ project(":pig") {
     dependencies {
         compile project(':core')
         compile "org.antlr:antlr:3.4"
-        compile "joda-time:joda-time:2.2"
+        compile "joda-time:joda-time:2.1"
 
         if (hadoop_version == "cdh4") {
             compile "org.apache.pig:pig:0.10.0-cdh4.2.0"

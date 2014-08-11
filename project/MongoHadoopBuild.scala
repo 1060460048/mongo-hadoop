@@ -19,7 +19,7 @@ object MongoHadoopBuild extends Build {
   val loadSampleData = TaskKey[Unit]("load-sample-data", "Loads sample data for example programs")
 
 
-  private val stockPig = "0.9.2"
+  private val stockPig = "0.12.1"
   private val stockHive = "0.10.0"
   private val cdh3Rel = "cdh3u3"
   private val cdh3Hadoop = "0.20.2-%s".format(cdh3Rel) // current "base" version they patch against
@@ -207,7 +207,6 @@ object MongoHadoopBuild extends Build {
 
     resolvers ++= Seq(Resolvers.rawsonApache), /** Seems to have thrift deps I need*/
     libraryDependencies <++= (scalaVersion, libraryDependencies, hadoopRelease) { (sv, deps, hr: String) =>
-    libraryDependencies += "joda-time" %% "joda-time" % "2.2"
 
       if(hr == "cdh4"){
         Seq("org.apache.pig" % "pig" % "0.10.0-cdh4.2.0")
@@ -319,7 +318,8 @@ object MongoHadoopBuild extends Build {
 
       Seq(
         "org.apache.pig" % "pig" % pigVersion,
-        "org.antlr" % "antlr" % "3.4"
+        "org.antlr" % "antlr" % "3.4",
+        "joda-time" % "joda-time" % "2.1"
       )
     }
   }

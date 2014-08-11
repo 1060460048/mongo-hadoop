@@ -16,10 +16,14 @@
 
 package com.mongodb.hadoop.pig;
 
-import com.mongodb.BasicDBObjectBuilder;
-import com.mongodb.hadoop.MongoOutputFormat;
-import com.mongodb.hadoop.output.MongoRecordWriter;
-import com.mongodb.hadoop.util.MongoConfigUtil;
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -37,14 +41,12 @@ import org.apache.pig.data.DataType;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.impl.util.UDFContext;
 import org.apache.pig.impl.util.Utils;
+import org.joda.time.DateTime;
 
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import com.mongodb.BasicDBObjectBuilder;
+import com.mongodb.hadoop.MongoOutputFormat;
+import com.mongodb.hadoop.output.MongoRecordWriter;
+import com.mongodb.hadoop.util.MongoConfigUtil;
 
 public class MongoStorage extends StoreFunc implements StoreMetadata {
 
@@ -185,6 +187,12 @@ public class MongoStorage extends StoreFunc implements StoreMetadata {
             for (Object key : map.keySet()) {
                 builder.add(key.toString(), map.get(key));
             }
+        } else if (i == DataType.DATETIME) {
+            builder.add(field.getName(), ((DateTime) d).toDate());
+        } else {
+            //Just try adding the field.  Let's us handle new Pig types without
+            //explicitly adding them causing versioning problems.
+            builder.add(field.getName(), d);
         }
     }
 

@@ -16,8 +16,13 @@
 
 package com.mongodb.hadoop.pig;
 
-import com.mongodb.BasicDBObjectBuilder;
-import com.mongodb.hadoop.BSONFileOutputFormat;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -38,14 +43,10 @@ import org.apache.pig.data.DataType;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.impl.util.UDFContext;
 import org.apache.pig.impl.util.Utils;
+import org.joda.time.DateTime;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import com.mongodb.BasicDBObjectBuilder;
+import com.mongodb.hadoop.BSONFileOutputFormat;
 
 public class BSONStorage extends StoreFunc implements StoreMetadata {
 
@@ -117,6 +118,7 @@ public class BSONStorage extends StoreFunc implements StoreMetadata {
                 return o.toString();
             case DataType.CHARARRAY:
                 return o;
+                
 
             //Given a TUPLE, create a Map so BSONEncoder will eat it
             case DataType.TUPLE:
@@ -180,6 +182,8 @@ public class BSONStorage extends StoreFunc implements StoreMetadata {
                     out.put(key.toString(), getTypeForBSON(map.get(key), null, toIgnore));
                 }
                 return out;
+            case DataType.DATETIME:
+                return ((DateTime) o).toDate();
             default:
                 return o;
         }

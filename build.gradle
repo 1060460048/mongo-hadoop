@@ -59,6 +59,7 @@ configure(subprojects) {
 
     dependencies {
         compile "org.mongodb:mongo-java-driver:2.11.4"
+        compile "joda-time:joda-time:2.2"
 
         testCompile 'junit:junit:4.11'
         testCompile 'org.hamcrest:hamcrest-all:1.3'
